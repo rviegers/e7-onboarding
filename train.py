@@ -3,20 +3,15 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
 import timm
 import numpy as np
+import hydra
+from omegaconf import DictConfig
+import wandb
 
 from prepare_dataset import BirdDataset, get_label_list
 from metric import compute_map
 from tqdm import tqdm
 
-METADATA = "data/train_metadata_africa_top30.csv"
-AUDIO_DIR = "data/train_audio"
-SPEC_DIR = "data/spectrograms"
-EPOCHS = 10
-BATCH_SIZE = 16
-LR = 1e-4
-VAL_SPLIT = 0.2
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-SEED = 42
 
 
 def set_seed(seed: int):
@@ -24,30 +19,41 @@ def set_seed(seed: int):
     np.random.seed(seed)
 
 
-def main():
-    set_seed(SEED)
-    label_list = get_label_list(METADATA)
+@hydra.main(config_path="configs", config_name="default", version_base=None)
+def main(cfg: DictConfig):
+    set_seed(cfg.training.seed)
+
+    if cfg.wandb.enabled:
+        wandb.init(project=cfg.wandb.project, config=dict(cfg))
+
+    label_list = get_label_list(cfg.data.metadata)
     n_classes = len(label_list)
 
-    dataset = BirdDataset(METADATA, AUDIO_DIR, label_list, spec_dir=SPEC_DIR)
-    val_size = int(len(dataset) * VAL_SPLIT)
+    dataset = BirdDataset(cfg.data.metadata, cfg.data.audio_dir, label_list, spec_dir=cfg.data.spec_dir)
+    val_size = int(len(dataset) * cfg.data.val_split)
     train_size = len(dataset) - val_size
-    train_ds, val_ds = random_split(dataset, [train_size, val_size], generator=torch.Generator().manual_seed(SEED))
-
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, generator=torch.Generator().manual_seed(SEED))
-    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
-
-    model = timm.create_model(
-        "efficientnet_b1",
-        pretrained=True,
-        num_classes=n_classes,
+    train_ds, val_ds = random_split(
+        dataset, [train_size, val_size],
+        generator=torch.Generator().manual_seed(cfg.training.seed),
     )
+
+    train_loader = DataLoader(
+        train_ds, batch_size=cfg.training.batch_size, shuffle=True,
+        num_workers=cfg.training.num_workers,
+        generator=torch.Generator().manual_seed(cfg.training.seed),
+    )
+    val_loader = DataLoader(
+        val_ds, batch_size=cfg.training.batch_size, shuffle=False,
+        num_workers=cfg.training.num_workers,
+    )
+
+    model = timm.create_model(cfg.model.name, pretrained=cfg.model.pretrained, num_classes=n_classes)
     model = model.to(DEVICE)
 
     criterion = nn.BCEWithLogitsLoss()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.training.lr)
 
-    for epoch in range(1, EPOCHS + 1):
+    for epoch in range(1, cfg.training.epochs + 1):
         # --- train ---
         model.train()
         train_loss = 0.0
@@ -79,8 +85,14 @@ def main():
 
         print(f"Epoch {epoch:02d} | train_loss={train_loss:.4f} | val_loss={val_loss:.4f} | mAP={map_score:.4f}")
 
+        if cfg.wandb.enabled:
+            wandb.log({"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss, "mAP": map_score})
+
     torch.save(model.state_dict(), "model.pth")
     print("Saved model.pth")
+
+    if cfg.wandb.enabled:
+        wandb.finish()
 
 
 if __name__ == "__main__":

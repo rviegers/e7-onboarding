@@ -125,3 +125,123 @@ There are three reasons this matters:
 1. **A single honest score.** Computing mAP on the full OOF array is more reliable than averaging the per-fold scores, because it weights each sample equally rather than each fold equally.
 2. **A paper trail.** As you iterate, saved OOF files let you go back and understand what earlier models got right or wrong — even after you have stopped tracking that experiment.
 3. **Free ensembling.** When you want to blend multiple models later, you already have their predictions on the full training set ready to combine without rerunning anything.
+
+---
+
+## Session 2 — Config Management & Experiment Tracking
+
+> **Goal:** Make your experiments reproducible, organised, and comparable. By the end of this session every run will be fully configured from a single file, outputs will be organized and metrics will be logged automatically.
+
+---
+
+## Config management with Hydra
+
+As soon as you start iterating, e.g. trying a different learning rate, swapping the model, a new strategy, hardcoded constants at the top of `train.py` become a problem. You end up editing source code to run experiments, which makes it hard to reproduce a previous run or track what you actually changed. In addition the constants are everywhere and get lost.
+
+**Hydra** solves this by making your config file the single source of truth. All hyperparameters live in `configs/default.yaml`, and `train.py` receives them as a typed config object at runtime. You never touch `train.py` to change a parameter. Hydra does a lot of the boiler plate code for you.
+
+```yaml
+# configs/default.yaml
+training:
+  epochs: 10
+  batch_size: 16
+  lr: 1e-4  
+```
+
+```python
+@hydra.main(config_path="configs", config_name="default", version_base=None)
+def main(cfg: DictConfig):
+    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.training.lr)
+```
+
+The real power comes from **command-line overrides** — you can change any value without editing a file:
+
+```bash
+# change learning rate for one run
+uv run train.py training.lr=3e-4
+
+# swap the model entirely
+uv run train.py model.name=efficientnet_b0
+
+# run a quick sweep over learning rates
+uv run train.py --multirun training.lr=1e-3,1e-4,1e-5
+```
+
+Hydra also automatically saves a timestamped copy of the exact config used for each run under `outputs/`, which is very usefull for experiment tracking, and being able to reproduce things.
+
+---
+
+## Experiment tracking with Weights & Biases
+
+In the previous session, we were logging training dynamics to the terminal by using `print` statements. However, we want to keep track of this information to reference it. 
+
+**Weights & Biases (wandb)** logs every metric from every run to a persistent dashboard. Each run gets a name, a config snapshot, and a full history of every value you logged.
+
+```python
+import wandb
+
+wandb.init(project="birdclef-africa", config=dict(cfg))
+
+# inside the training loop
+wandb.log({"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss, "mAP": map_score})
+
+wandb.finish()
+```
+
+This gives you the ability to do a lot of custom plotting, for instance:
+- **Live loss curves** while training
+- **Run comparison** — plot mAP vs epoch across every experiment on the same axes
+- **Config diff** — see exactly what changed between any two runs
+
+Before running, log in once:
+
+```bash
+wandb login
+```
+
+Then train as normal by running `uv run train.py`. A link to your run's dashboard will appear in the terminal output.
+
+Wandb can be disabled for a run without changing any code:
+
+```bash
+uv run train.py wandb.enabled=false
+```
+
+---
+
+## GPU Utilisation
+
+> **Goal:** Make the GPU the bottleneck. If your GPU is sitting at 40% utilisation while your CPUs are maxed out, you are leaving most of your hardware idle. A properly saturated GPU trains 5–10× faster, and in a competition, that means 5–10× more experiments in the same time.
+
+---
+
+### Monitor first, optimise second
+
+Before changing anything, measure. Two tools:
+
+```bash
+nvidia-smi        # snapshot of GPU utilisation, memory, and running processes (by NVIDIA)
+nvtop             # live GPU monitor — like htop but for GPUs, much nicer (3rd party)
+```
+
+Watch GPU utilisation (%) while training. If it is consistently below ~90%, something upstream (e.g. data loading, CPU preprocessing or others) is the bottleneck, not the model. Your job is to find and fix that constraint. There are many levers to pull: number of dataloader workers, prefetching, pinned memory, batch size, precomputation. The challenge is yours to figure out.
+
+### Use every GPU you have
+
+During a long sweep or final training run, there is no reason to leave GPUs idle. First, check what you have:
+
+```bash
+nvidia-smi -L
+```
+
+Each device gets an index: `0`, `1`, `2`, ... You can target a specific one with the `CUDA_VISIBLE_DEVICES` environment variable:
+
+```bash
+# terminal 1 — runs on GPU 0
+CUDA_VISIBLE_DEVICES=0 uv run train.py model.name=efficientnet_b0
+
+# terminal 2 — runs on GPU 1
+CUDA_VISIBLE_DEVICES=1 uv run train.py model.name=efficientnet_b1
+```
+
+This lets you run independent experiments in parallel across GPUs. Use one terminal per device (GPU). Combined with sweeping libraries and wandb logging, this is how you run a proper sweep without a cluster.
