@@ -13,5 +13,5 @@ def submit_prediction(file_path, participant_name):
 
 if __name__ == "__main__":
     # Example usage:
-    result = submit_prediction('my_preds.csv', 'Team_Alpha')
-    print(result)
+    result = submit_prediction('my_preds.csv', 'Lessgooo')
+    print(f"Submission score: {result['score']:.4f} | {result['message']}")
