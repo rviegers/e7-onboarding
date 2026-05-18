@@ -1,0 +1,20 @@
+data:
+  metadata: "data/train_metadata_africa_top30.csv"
+  audio_dir: "data/train_audio"
+  spec_dir: "data/spectrograms"
+  val_split: 0.2
+
+model:
+  name: "efficientnet_b1"
+  pretrained: true
+
+training:
+  epochs: 10
+  batch_size: 16
+  lr: 1e-4
+  seed: 42
+  num_workers: 4
+
+wandb:
+  project: "birdclef-africa"
+  enabled: true
