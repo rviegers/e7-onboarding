@@ -1,2 +1,12 @@
+*__pycache__/
+*.pyc
+.venv/
+
+# data
 data/
 data_original/
+
+# Output directories
+outputs/
+multirun/
+wandb/
