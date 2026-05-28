@@ -37,7 +37,7 @@ The audio-to-spectrogram conversion is already handled for you. For a bird class
 
 ### From audio to model input — the Log-Mel Spectrogram
 
-Neural networks cannot consume raw waveforms directly in most practical pipelines. Instead we convert audio into an image-like representation: the **log-mel spectrogram**.
+To directly exploit patterns in the frequency domain, we convert audio into an image-like representation: the **log-mel spectrogram**. What happens?
 
 1. Compute the Short-Time Fourier Transform (STFT) to get frequency content over time
 2. Map the frequency axis onto the **mel scale** — a perceptual scale that mirrors how ears work, compressing high frequencies
