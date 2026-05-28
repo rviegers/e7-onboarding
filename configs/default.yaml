@@ -1,5 +1,5 @@
 data:
-  metadata: "data/train_metadata_africa_top30.csv"
+  metadata: "data/train_split.csv"
   audio_dir: "data/train_audio"
   spec_dir: "data/spectrograms"
   val_split: 0.2
