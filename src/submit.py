@@ -8,7 +8,6 @@ import timm
 import torch
 import torchaudio
 import torchaudio.transforms as T
-from omegaconf import OmegaConf
 from tqdm import tqdm
 from torchvision.transforms.functional import resize
 
@@ -60,17 +59,14 @@ def predict_file(model: torch.nn.Module, ogg_path: Path) -> np.ndarray:
 
 def main():
     parser = argparse.ArgumentParser(description="Generate predictions and submit to server")
-    parser.add_argument("--experiment", required=True, help="Path to Hydra experiment output directory")
+    parser.add_argument("--weights", required=True, help="Path to .pt model weights")
     parser.add_argument("--name", required=True, help="Participant/team name for submission")
+    parser.add_argument("--model", default="efficientnet_b1", help="timm model name (default: efficientnet_b1)")
     parser.add_argument("--out", default="submission.csv", help="Output CSV path (default: submission.csv)")
     args = parser.parse_args()
 
-    exp_dir = Path(args.experiment)
-    cfg = OmegaConf.load(exp_dir / ".hydra" / "config.yaml")
-    weights = exp_dir / "best_model.pt"
-
     label_list = get_label_list(METADATA)
-    model = load_model(weights, len(label_list), cfg.model.name)
+    model = load_model(args.weights, len(label_list), args.model)
 
     test_df = pd.read_csv(TEST_SPLIT)
     rows = {}
