@@ -4,7 +4,9 @@ from torch.utils.data import DataLoader, random_split
 import timm
 import numpy as np
 import hydra
+from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig
+from pathlib import Path
 import wandb
 
 from prepare_dataset import BirdDataset, get_label_list
@@ -53,6 +55,8 @@ def main(cfg: DictConfig):
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.training.lr)
 
+    output_dir = Path(HydraConfig.get().runtime.output_dir)
+    best_map = -1.0
     for epoch in range(1, cfg.training.epochs + 1):
         # --- train ---
         model.train()
@@ -88,8 +92,10 @@ def main(cfg: DictConfig):
         if cfg.wandb.enabled:
             wandb.log({"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss, "mAP": map_score})
 
-    torch.save(model.state_dict(), "model.pth")
-    print("Saved model.pth")
+        if map_score > best_map:
+            best_map = map_score
+            torch.save(model.state_dict(), output_dir / "best_model.pt")
+            print(f"  -> Saved best_model.pt (mAP={best_map:.4f})")
 
     if cfg.wandb.enabled:
         wandb.finish()
