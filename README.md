@@ -12,13 +12,20 @@ Each recording is a variable-length `.ogg` file (median ~30s) captured in the fi
 
 ### Submitting to the leaderboard
 
-Once you have trained a model and generated predictions, run:
+Once you have trained a model, run `submit.py` to generate predictions and send them to the leaderboard server:
 
 ```bash
-uv run submit.py
+uv run src/submit.py --weights best_model.pt --name "Your Team Name"
 ```
 
-Before submitting, open `submit.py` and fill in your **team name** at the top of the file — this is how you will appear on the leaderboard.
+| Argument | Required | Description |
+|---|---|---|
+| `--weights` | yes | Path to your saved `.pt` model weights |
+| `--name` | yes | Your team name — this is how you appear on the leaderboard |
+| `--model` | no | timm model architecture (default: `efficientnet_b1`) — only change this if you trained a different backbone |
+| `--out` | no | Where to save the submission CSV (default: `submission.csv`) |
+
+The script will run inference on the test set, save a `submission.csv`, and immediately post it to the server. The server will print your mAP score and a confirmation message.
 
 There are no submission limits, so submit as often as you like. The leaderboard always shows your **best score** across all submissions, so there is no risk in submitting intermediate or experimental results.
 
