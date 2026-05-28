@@ -21,7 +21,7 @@ def set_seed(seed: int):
     np.random.seed(seed)
 
 
-@hydra.main(config_path="configs", config_name="default", version_base=None)
+@hydra.main(config_path="../configs", config_name="default", version_base=None)
 def main(cfg: DictConfig):
     set_seed(cfg.training.seed)
 
