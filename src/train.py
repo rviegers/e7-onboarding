@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, Subset
 import timm
 import numpy as np
 import hydra
@@ -8,6 +8,7 @@ from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig
 from pathlib import Path
 import wandb
+from sklearn.model_selection import GroupShuffleSplit
 
 from prepare_dataset import BirdDataset, get_label_list
 from metric import compute_map
@@ -32,12 +33,9 @@ def main(cfg: DictConfig):
     n_classes = len(label_list)
 
     dataset = BirdDataset(cfg.data.metadata, cfg.data.audio_dir, label_list, spec_dir=cfg.data.spec_dir)
-    val_size = int(len(dataset) * cfg.data.val_split)
-    train_size = len(dataset) - val_size
-    train_ds, val_ds = random_split(
-        dataset, [train_size, val_size],
-        generator=torch.Generator().manual_seed(cfg.training.seed),
-    )
+    gss = GroupShuffleSplit(n_splits=1, test_size=cfg.data.val_split, random_state=cfg.training.seed)
+    train_idx, val_idx = next(gss.split(dataset.df, groups=dataset.df["author"]))
+    train_ds, val_ds = Subset(dataset, train_idx), Subset(dataset, val_idx)
 
     train_loader = DataLoader(
         train_ds, batch_size=cfg.training.batch_size, shuffle=True,
