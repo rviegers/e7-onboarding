@@ -23,7 +23,7 @@ AUDIO_DIR = Path("data/test_audio")
 METADATA = "data/train_split.csv"
 TEST_SPLIT = "data/test_split.csv"
 SAMPLE_SUB = "data/sample_submission_test.csv"
-SUBMIT_URL = "https://gossip-gruffly-unsocial.ngrok-free.dev/submit"
+SUBMIT_URL = "https://gooey-elk-trial.ngrok-free.dev/leaderboard"
 
 
 def load_model(weights_path: str, n_classes: int, model_name: str) -> torch.nn.Module:
