@@ -5,7 +5,7 @@ import timm
 import numpy as np
 import hydra
 from hydra.core.hydra_config import HydraConfig
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pathlib import Path
 import wandb
 from sklearn.model_selection import GroupShuffleSplit
@@ -27,7 +27,7 @@ def main(cfg: DictConfig):
     set_seed(cfg.training.seed)
 
     if cfg.wandb.enabled:
-        wandb.init(project=cfg.wandb.project, config=dict(cfg))
+        wandb.init(project=cfg.wandb.project, config=OmegaConf.to_container(cfg, resolve=True))
 
     label_list = get_label_list(cfg.data.metadata)
     n_classes = len(label_list)
