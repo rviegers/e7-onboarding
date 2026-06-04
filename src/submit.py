@@ -60,24 +60,27 @@ def predict_file(model: torch.nn.Module, ogg_path: Path) -> np.ndarray:
 
 def main():
     parser = argparse.ArgumentParser(description="Generate predictions and submit to server")
-    parser.add_argument("--experiment", required=True, help="Path to Hydra experiment output directory")
+    parser.add_argument("--experiments", required=True, nargs="+", help="Path(s) to Hydra experiment output directories")
     parser.add_argument("--name", required=True, help="Participant/team name for submission")
     parser.add_argument("--out", default="submission.csv", help="Output CSV path (default: submission.csv)")
     args = parser.parse_args()
 
-    exp_dir = Path(args.experiment)
-    cfg = OmegaConf.load(exp_dir / ".hydra" / "config.yaml")
-    weights = exp_dir / "best_model.pt"
-
     label_list = get_label_list(METADATA)
-    model = load_model(weights, len(label_list), cfg.model.name)
-
     test_df = pd.read_csv(TEST_SPLIT)
-    rows = {}
-    for filename in tqdm(test_df["filename"], desc="Inference"):
-        ogg_path = AUDIO_DIR / filename
-        row_id = Path(filename).stem
-        rows[row_id] = predict_file(model, ogg_path)
+    filenames = list(test_df["filename"])
+
+    all_preds: list[dict] = []
+    for exp_path in args.experiments:
+        exp_dir = Path(exp_path)
+        cfg = OmegaConf.load(exp_dir / ".hydra" / "config.yaml")
+        model = load_model(exp_dir / "best_model.pt", len(label_list), cfg.model.name)
+        rows = {}
+        for filename in tqdm(filenames, desc=f"Inference {exp_dir.name}"):
+            rows[Path(filename).stem] = predict_file(model, AUDIO_DIR / filename)
+        all_preds.append(rows)
+
+    row_ids = [Path(f).stem for f in filenames]
+    rows = {rid: np.mean([p[rid] for p in all_preds], axis=0) for rid in row_ids}
 
     sample = pd.read_csv(SAMPLE_SUB)
     species_cols = [c for c in sample.columns if c != "row_id"]
